@@ -179,6 +179,9 @@ def main():
     story.append(PageBreak())
     paragraph("Reproducibility and evidence", "title")
     paragraph("From the repository root:", "heading")
+    paragraph("The public repository contains source code. Place the supplied benchmark "
+              "file SNLS80mV.mat in silverbox/data/ before running. The recorded report "
+              "and raw validation artifacts are retained in the local project.", "small")
     paragraph("python3.12 -m venv .venv<br/>.venv/bin/python -m pip install -r requirements.txt<br/>"
               "ollama pull qwen2.5:7b<br/>ollama pull qwen2.5-coder:7b<br/>.venv/bin/python run.py", "code")
     paragraph("Ollama must be running locally. A fresh run may choose different routes or "

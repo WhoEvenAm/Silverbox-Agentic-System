@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.mplcache/
+tmp/
+*.zip
+*.bundle
+output/runs/
+silverbox/data/
+output/

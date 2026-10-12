@@ -11,6 +11,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (
     Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
+from persistence import load_run
 
 PROJECT = Path(__file__).resolve().parent
 
@@ -19,12 +20,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository-url", required=True)
     args = parser.parse_args()
-    summary = json.loads((PROJECT / "output/latest_run.json").read_text())
+    # Keep reporting the last success even if a newer run was interrupted.
+    pointer = PROJECT / "output/latest_completed_run.json"
+    if not pointer.exists():
+        pointer = PROJECT / "output/latest_run.json"
+    summary = json.loads(pointer.read_text())
     if summary["status"] != "completed":
         raise ValueError("Only a completed, independently verified run can produce the report")
     # Rebase recorded host paths so the published repository is portable.
     run = PROJECT / "output/runs" / Path(summary["run_directory"]).name
-    state = json.loads((run / "dialogue.json").read_text())
+    state, summary = load_run(run)
+    if summary.get("status") != "completed":
+        raise ValueError("The saved run checkpoint is not completed")
     evidence = summary["execution"]
     attempt = run / Path(evidence["working_directory"]).name
     plan = next(json.loads(turn["text"]) for turn in reversed(state["dialogue"])
@@ -112,10 +119,9 @@ def main():
     )
     if summary.get("resumptions"):
         paragraph(
-            "The initial executor used qwen2.5:7b and produced an import error. The "
-            "interrupted run resumed at its already-selected executor repair using "
-            "qwen2.5-coder:7b. The scientist plan and decision count were retained. "
-            "Total time adds active run sessions and excludes the pause/model download.", "small"
+            f"This run was resumed {len(summary['resumptions'])} time(s). The saved "
+            "scientist plan and decision count were retained. Total time adds recorded "
+            "active sessions and excludes pauses between sessions.", "small"
         )
     routing = [["Decision", "Next role", "Instruction and reason"]]
     for count, turn in enumerate([t for t in state["dialogue"] if t["role"] == "orchestrator"], 1):
@@ -196,12 +202,15 @@ def main():
         ["results.json / *.pt", "Four configurations and fresh per-run/best checkpoints"],
         ["predictions.csv / test_predictions.png", "Full measured/predicted trace and test comparison"],
         ["summary.json", "Completion status, eight-decision accounting, and verified measurements"],
+        ["checkpoint.json", "Atomic dialogue and summary used for reliable resume"],
     ], [180, width - 180])
     paragraph("Verification", "heading")
     paragraph(
         "Focused tests cover traceback capture, timeout termination, filename containment, "
         "rejection of invented or duplicate scores, refusal to finish without executor "
-        "evidence, and stopping after decision eight. End-to-end validation additionally "
+        "evidence, stopping after decision eight, resuming its pending specialist, "
+        "atomic checkpoint writes, exclusive run access, and child cleanup on interruption. "
+        "End-to-end validation additionally "
         "reloads all four new checkpoints, verifies their settings against the scientist "
         "plan, checks selection of the lowest test score, and recomputes the full trace."
     )

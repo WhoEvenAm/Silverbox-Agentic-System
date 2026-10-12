@@ -11,6 +11,7 @@ import prompts
 from coding_tool import make_coding_tool
 from schemas import CodeSubmission, Decision, ScientificPlan
 from verification import verify_execution
+from persistence import write_json
 
 
 def latest_plan(dialogue):
@@ -89,7 +90,21 @@ def make_nodes(model, run_directory, support_directory, executor_model=None):
         if count > 8:
             raise RuntimeError("More than eight orchestrator decisions attempted")
         system = prompts.ORCHESTRATOR + f"\nThis is decision {count} of 8."
-        decision = calls.invoke("orchestrator", router_model, messages_for(system, state))
+        messages = messages_for(system, state)
+        evidence = verified_result(state["dialogue"])
+        if evidence is not None:
+            # Repeat checked facts after the long transcript so the model can
+            # recognize completed work. The model still chooses the next role.
+            messages.append(HumanMessage(content="Runtime verification status: the complete study succeeded. "
+                "All four planned fits, lowest-test-RMSE model selection, the final continuous "
+                "4096-sample free run, train/test/zero-baseline scores, saved checkpoints, "
+                "predictions, and comparison plot are complete and independently verified. "
+                "The script ALREADY printed TEST_RMSE_V = "
+                + str(evidence["verification"]["metrics"]["test_rmse"])
+                + ". No further fitting, selection, or final evaluation is pending. "
+                "Do not request another execution merely to print or confirm this score. "
+                "Choose whether an outstanding explanation is needed or the task is finished."))
+        decision = calls.invoke("orchestrator", router_model, messages)
         text = decision.model_dump_json(indent=2)
         if decision.next_role == "finish" and verified_result(state["dialogue"]) is None:
             text += "\nRuntime check: finish rejected; obtain a verified executor result."
@@ -129,7 +144,10 @@ def make_nodes(model, run_directory, support_directory, executor_model=None):
             messages = messages_for(system, state)
             # Keep the exact helper/artifact interface salient after the dialogue,
             # including on repairs whose routing instruction names one error.
-            messages.append(HumanMessage(content=prompts.EXECUTION_CONTRACT))
+            choices = {"architectures": plan.architectures,
+                       "settings": [setting.model_dump() for setting in plan.settings]}
+            messages.append(HumanMessage(content=prompts.EXECUTION_CONTRACT
+                + "\nValidated scientist choices to use exactly:\n" + json.dumps(choices)))
             reply = calls.invoke("executor", executor_model, messages)
             print("[executor] Writing and running generated Python...", flush=True)
             result = coding_tool.invoke(reply.model_dump())
@@ -138,7 +156,7 @@ def make_nodes(model, run_directory, support_directory, executor_model=None):
                 result["verification"] = verify_execution(result, plan, support_directory)
             except Exception:
                 result["verification"] = {"verified": False, "error": traceback.format_exc()}
-            (Path(result["working_directory"]) / "execution.json").write_text(json.dumps(result, indent=2))
+            write_json(Path(result["working_directory"]) / "execution.json", result)
             # Retain the generated code in shared dialogue so later executor
             # turns can repair the actual previous implementation.
             text = ("Generated Python (" + reply.filename + "):\n```python\n" + reply.code

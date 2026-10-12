@@ -11,10 +11,33 @@ from agents import make_nodes, verified_result
 from coding_tool import write_and_run
 from graph import build_graph
 from verification import printed_number
-from schemas import CodeSubmission, ScientificPlan
+from schemas import CodeSubmission, Decision, ScientificPlan
 
 
 class SystemTests(unittest.TestCase):
+    def test_checked_result_is_visible_but_model_still_selects_role(self):
+        class Model:
+            def with_structured_output(self, schema, **kwargs):
+                return self
+
+            def invoke(self, messages):
+                self.messages = messages
+                return Decision(next_role="general", instruction="Explain the units",
+                                reason="The user still needs an explanation.")
+
+        model = Model()
+        evidence = {"exit_code": 0, "timed_out": False,
+                    "verification": {"verified": True, "metrics": {"test_rmse": .038}}}
+        state = {"dialogue": [{"role": "user", "text": "Explain the units"},
+                             {"role": "executor", "text": "actual output", "execution": evidence}],
+                 "decision_count": 3}
+        with tempfile.TemporaryDirectory() as root:
+            result = make_nodes(model, root, root)["orchestrator"](state)
+        self.assertEqual(result["decision"]["next_role"], "general")
+        self.assertIn("Explain the units", model.messages[1].content)
+        self.assertIn("actual output", model.messages[1].content)
+        self.assertIn("ALREADY printed TEST_RMSE_V = 0.038", model.messages[-1].content)
+
     def test_executor_structured_arguments_reach_real_process(self):
         class Model:
             def with_structured_output(self, schema, **kwargs):

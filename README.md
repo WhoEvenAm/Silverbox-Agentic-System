@@ -15,7 +15,12 @@ all checkpoints to verify the reported continuous free-run predictions.
 | Training RMSE | 26.62 mV |
 | Test RMSE | 38.96 mV |
 | Zero-prediction test baseline | 60.49 mV |
-| Successful script execution | 24.5 seconds |
+| Successful script execution | 27.5 seconds |
+| Full agent workflow | 303.2 seconds |
+
+The latest validation completed without interruption in five orchestrator
+decisions and nine model calls. One generated script trained the four models;
+the workflow also requested a scientist review before its finish decision.
 
 The selected network has hidden widths `[32, 32]`, Adam with learning rate
 `0.001`, 700 updates, 20-sample training windows, and batch size 1.
@@ -50,6 +55,9 @@ flowchart LR
 Every node reads the shared dialogue and appends a message containing its role
 and text. The orchestrator makes a fresh model call for each routing decision.
 Routes are not selected by keywords or a fixed sequence of roles.
+After successful verification, the orchestrator also receives a short reminder
+of the checked score after the full transcript, helping it recognize completed
+work without repeating a fit merely to print the same measurement.
 
 ## Installation
 
@@ -81,12 +89,34 @@ be supplied with `--request-file path/to/request.txt`. Use `--model` or
 
 Each run writes a timestamped folder under `output/runs/`. Inspect
 `output/latest_run.json` for the completion status and verified measurements.
+`output/latest_completed_run.json` preserves the last successful result even if
+a later run fails or is interrupted; the report builder uses that successful run.
 Model calls can take several minutes on a laptop; the 300-second limit applies
 to each generated Python script, separately from language-model generation.
 
-Resume an interrupted run with `--resume-run <run-folder-name>`. The saved dialogue,
-scientist plan, and decision count are retained. A pending selected specialist
-runs first; the eight-decision budget does not reset.
+Press Ctrl+C to stop. The runner records an `interrupted` status and, if a Python
+script is executing, terminates and reaps its process group. Its stdout and stderr
+are written directly to the attempt files, so output is available during execution
+and after an interruption. SIGTERM follows the same cleanup path.
+
+Resume using the saved folder's name:
+
+```sh
+.venv/bin/python run.py --resume-run <run-folder-name>
+```
+
+The saved dialogue, scientist plan, decision count, and model/endpoint choices
+are retained. Explicit CLI model or endpoint options override saved choices.
+A pending selected specialist runs first, including one selected by decision
+eight; the eight-decision budget does not reset. A completed run or an exhausted
+run with no pending specialist cannot resume. A process lock prevents two
+sessions from resuming the same run simultaneously.
+
+The runner saves `checkpoint.json` before its first model call and after every
+completed turn. It writes a complete temporary file and then replaces the old
+checkpoint atomically, so an interrupted write cannot leave half-written JSON.
+An unfinished model call or executor turn is retried on resume; completed turns
+are retained. Earlier runs saved without this checkpoint format are also supported.
 
 ### Coding tool and completion rules
 
@@ -136,6 +166,7 @@ selection, and compares the saved prediction trace with the recomputed trajector
 | `results.json`, `*.pt` | Comparison configurations and fresh checkpoints |
 | `predictions.csv`, `test_predictions.png` | Full trace and test comparison |
 | `summary.json` | Completion status, decisions, time, and verified result |
+| `checkpoint.json` | Authoritative dialogue and summary for resume |
 
 Recorded process paths identify the machine where validation ran. The report
 builder rebases artifact locations to the current repository directory.
@@ -148,7 +179,9 @@ builder rebases artifact locations to the current repository directory.
 .venv/bin/python build_report.py --repository-url https://github.com/WhoEvenAm/Silverbox-Agentic-System
 ```
 
-The report builder requires a completed, verified run and writes to `output/pdf/`.
+The report builder uses the latest completed, verified run and writes to `output/pdf/`.
+Tests include real child-process interruption, timeout cleanup, checkpoint write
+failure, concurrent-run exclusion, and resuming a pending eighth specialist turn.
 
 ## Source map
 
@@ -162,6 +195,7 @@ The report builder requires a completed, verified run and writes to `output/pdf/
 | `coding_tool.py` | Write/run tool with process timeout handling |
 | `verification.py` | Independent checkpoint and trajectory checks |
 | `run.py` | Run entry point and transcript persistence |
+| `persistence.py` | Atomic JSON checkpoints, legacy loading, and exclusive run locks |
 | `build_report.py` | Written report from actual execution artifacts |
 | `silverbox/` | Tested neural dynamics primitives and benchmark data |
 | `silverbox/src/study_utils.py` | Execute the chosen study and save benchmark artifacts |

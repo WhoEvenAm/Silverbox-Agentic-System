@@ -21,6 +21,16 @@ def return_turn(state):
     return END if state["decision_count"] >= 8 else "orchestrator"
 
 
+def resume_node(state):
+    """Resume the saved decision, including an uncompleted specialist turn eight."""
+    if not 0 <= state["decision_count"] <= 8:
+        raise ValueError("Saved decision count must be between zero and eight")
+    # Reuse exactly the same routing guards as an uninterrupted graph.
+    if state["dialogue"] and state["dialogue"][-1]["role"] == "orchestrator":
+        return route_decision(state)
+    return return_turn(state)
+
+
 def build_graph(nodes, start_at="orchestrator"):
     builder = StateGraph(AgentState)
     for name, function in nodes.items():

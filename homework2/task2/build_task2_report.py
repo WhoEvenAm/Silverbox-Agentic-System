@@ -154,11 +154,14 @@ def main():
          "because the model repeatedly claimed a scientist plan already existed. "
          "Runtime plan/completion facts and blocked-action feedback were added; the "
          "successful run above retains model-selected routing and settings.", "small")
-    text("In this run the general agent attached experiment 1's initial uncertainty "
-         "to its final score and over-attributed differences to macropixel size. "
-         "The report table reads the actual final tool statistics and does not make "
-         "that causal claim. Explicitly labeled statistics and a clearer explanation "
-         "prompt were subsequently added for future runs.", "small")
+    if args.run_name == "autonomous_focus_v2":
+        # This disclosure belongs to the preserved development run. Do not
+        # falsely attribute its explanation error to a future recorded run.
+        text("In this run the general agent attached experiment 1's initial uncertainty "
+             "to its final score and over-attributed differences to macropixel size. "
+             "The report table reads the actual final tool statistics and does not make "
+             "that causal claim. Explicitly labeled statistics and a clearer explanation "
+             "prompt were subsequently added for future runs.", "small")
     heading("Comparison with the lecture and PhotonicsAI Lab")
     text("The supplied Lecture 2 deck (pages 18-19) shows Gaussian illumination, "
          "amplitude DMD control, a transmission matrix, and camera intensity, matching "

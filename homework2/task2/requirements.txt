@@ -1,0 +1,7 @@
+numpy==2.5.3
+matplotlib==3.11.2
+langgraph==1.2.14
+langgraph-checkpoint-sqlite==3.1.1
+langchain-ollama==1.1.0
+pydantic==2.14.1
+reportlab==5.0.1

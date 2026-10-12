@@ -5,6 +5,12 @@ model. The system plans, implements, runs, and evaluates a neural dynamics model
 for the Silverbox oscillator, preserving the full conversation and execution
 evidence.
 
+## Homework 2, Task 1
+
+The [human-in-the-loop extension](homework2/task1) adds model-selected human
+questions, native LangGraph interrupts, persistent SQLite threads, and specific,
+single-use execution and finish approvals. Its README includes run/resume instructions.
+
 ## Recorded validation
 
 The recorded study trained four models from scratch and independently reloaded

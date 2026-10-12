@@ -1,6 +1,7 @@
 """Create Task 2 and combined PDFs using actual saved agent/tool evidence."""
 
 import argparse
+import hashlib
 from html import escape
 import json
 from pathlib import Path
@@ -22,6 +23,7 @@ def main():
     parser.add_argument("--run-name", required=True)
     parser.add_argument("--repository-url", required=True)
     parser.add_argument("--recording", type=Path, help="Actual screen recording, if already available")
+    parser.add_argument("--recording-review", type=Path, help="Local JSON notes from visual recording review")
     args = parser.parse_args()
     if not args.run_name or not all(c.isalnum() or c in "_-" for c in args.run_name):
         parser.error("Use a simple run-folder basename")
@@ -42,6 +44,17 @@ def main():
                 raise ValueError("Missing actual camera image: " + path)
     if args.recording and not args.recording.is_file():
         raise ValueError("The supplied recording does not exist")
+    review = None
+    if args.recording_review:
+        if not args.recording:
+            raise ValueError("Recording review requires the corresponding video")
+        review = json.loads(args.recording_review.read_text())
+        # Bind reviewed scene notes to this exact video and graph run. File
+        # existence alone cannot establish that the required scenes were shown.
+        with args.recording.open("rb") as video:
+            digest = hashlib.file_digest(video, "sha256").hexdigest()
+        if review["run_name"] != args.run_name or review["recording_sha256"] != digest:
+            raise ValueError("Recording review does not match this video and run")
 
     out = PROJECT / "output/pdf"
     out.mkdir(parents=True, exist_ok=True)
@@ -177,8 +190,20 @@ def main():
     reference_url = "https://photonicsai.com/wp-content/uploads/2026/08/Lab_work_2_focusing.pdf"
     story.append(Paragraph(f'<link href="{reference_url}">PhotonicsAI Lab: Lab work 2 - Focusing</link>', styles["small"]))
     heading("Screen recording and source")
-    if args.recording:
-        text("Actual recording supplied locally: " + str(args.recording.resolve()) +
+    if review:
+        duration = round(review["duration_seconds"])
+        text(f"Recording: {args.recording.name} ({duration // 60}:{duration % 60:02d}). "
+             "Sampled frames were visually checked against this run's actual event "
+             "log. The video shows model-selected routing, executor tool arguments, "
+             "changing camera measurements, both returned enhancements, and completion. "
+             "Submit the video as the accompanying attachment.", "small")
+        scenes = []
+        for scene in review["scenes"]:
+            second = scene["seconds"]
+            scenes.append(f"{int(second) // 60}:{int(second) % 60:02d} - {scene['description']}")
+        text("Video evidence:\n" + "\n".join(scenes), "small")
+    elif args.recording:
+        text("Recording supplied locally: " + str(args.recording.resolve()) +
              ". Attach this video or publish it as required by the assignment; its "
              "existence alone does not verify that every required scene is visible.", "small")
     else:

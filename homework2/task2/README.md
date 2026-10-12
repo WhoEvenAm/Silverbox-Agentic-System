@@ -118,3 +118,9 @@ at `../output/pdf/homework2_report.pdf`. Until an actual recording is available,
 the report marks the recording as pending. Supply its local path with
 `--recording /path/to/video.mov`; review its contents and attach/publish it
 separately as the assignment requires.
+
+An optional `--recording-review /path/to/review.json` adds visually reviewed
+scene timestamps to the report. The notes must identify this run and match the
+video's SHA-256 hash. This flag does not inspect the video automatically.
+`requirements-review.txt` contains the optional PyAV library for local frame
+inspection; it is already installed on this Mac.
